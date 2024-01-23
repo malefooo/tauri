@@ -36,9 +36,9 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "tauri-app",
+        "title": "巡检数据精准快速自动分类软件",
         "width": 850,
-        "height": 1150
+        "height": 1000
       }
     ]
   }

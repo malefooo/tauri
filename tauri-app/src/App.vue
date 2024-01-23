@@ -1,9 +1,45 @@
-<script setup lang="ts">
+<script lang="ts">
 import {
   Document, FolderOpen, CloudUploadOutline, CubeSharp, BarChartOutline, CloudDownloadOutline,
   CodeDownloadSharp,ReloadCircleOutline,Options, AlertCircleOutline, GitPullRequest,
   PlaySharp,ReaderOutline
 } from '@vicons/ionicons5'
+import { defineComponent, ref } from 'vue'
+import { repeat } from 'seemly'
+import { TreeOption } from 'naive-ui'
+
+function createData (level = 4, baseKey = ''): TreeOption[] | undefined {
+  if (!level) return undefined
+  return repeat(6 - level, undefined).map((_, index) => {
+    const key = '' + baseKey + level + index
+    return {
+      whateverLabel: createLabel(level),
+      whateverKey: key,
+      whateverChildren: createData(level - 1, key)
+    }
+  })
+}
+
+function createLabel (level: number): string {
+  if (level === 4) return '道生一'
+  if (level === 3) return '一生二'
+  if (level === 2) return '二生三'
+  if (level === 1) return '三生万物'
+  return ''
+}
+
+export default defineComponent({
+  components: {
+  },
+  setup () {
+    return {
+      Document, FolderOpen, CloudUploadOutline, CubeSharp, BarChartOutline, CloudDownloadOutline, CodeDownloadSharp,
+      ReloadCircleOutline,Options, AlertCircleOutline, GitPullRequest, PlaySharp,ReaderOutline,
+      data: createData(),
+      defaultExpandedKeys: ref(['40', '41'])
+    }
+  }
+})
 
 </script>
 
@@ -26,7 +62,7 @@ import {
               </n-button>
             </n-gi>
             <n-gi>
-              <n-button color="#DEB887FF" class="ngi-font-color" style="width: 100%" ghost round>
+              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="Document"></n-icon>
                 </template>
@@ -34,7 +70,7 @@ import {
               </n-button>
             </n-gi>
             <n-gi>
-              <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%" ghost round>
+              <n-button color="#F5DEB3FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="FolderOpen"></n-icon>
                 </template>
@@ -57,7 +93,7 @@ import {
               </n-button>
             </n-gi>
             <n-gi>
-              <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%" ghost round>
+              <n-button color="#F5DEB3FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="FolderOpen"></n-icon>
                 </template>
@@ -80,7 +116,7 @@ import {
               </n-button>
             </n-gi>
             <n-gi :span="2">
-              <n-button color="#DEB887FF" class="ngi-font-color" style="width: 100%" ghost round>
+              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="CodeDownloadSharp"></n-icon>
                 </template>
@@ -88,7 +124,7 @@ import {
               </n-button>
             </n-gi>
             <n-gi :span="2">
-              <n-button color="#DEB887FF" class="ngi-font-color" style="width: 100%" ghost round>
+              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="ReloadCircleOutline"></n-icon>
                 </template>
@@ -115,7 +151,7 @@ import {
               </n-button>
             </n-gi>
             <n-gi>
-              <n-button color="#DEB887FF" class="ngi-font-color" style="width: 100%" ghost round>
+              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="Document"></n-icon>
                 </template>
@@ -123,7 +159,7 @@ import {
               </n-button>
             </n-gi>
             <n-gi>
-              <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%" ghost round>
+              <n-button color="#F5DEB3FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="FolderOpen"></n-icon>
                 </template>
@@ -179,7 +215,7 @@ import {
               <n-input class="bgc" disabled readonly round placeholder="0/0" />
             </n-gi>
             <n-gi>
-              <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%" ghost round>
+              <n-button color="#F5DEB3FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="FolderOpen"></n-icon>
                 </template>
@@ -210,7 +246,7 @@ import {
               </n-button>
             </n-gi>
             <n-gi>
-              <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%" ghost round>
+              <n-button color="#F5DEB3FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="FolderOpen"></n-icon>
                 </template>
@@ -258,7 +294,16 @@ import {
                     </n-grid>
                   </n-layout-header>
                   <n-layout-content style="height: 300px" content-style="padding: 10px;" class="content-font-color">
-
+                    <n-tree
+                        block-line
+                        :data="data"
+                        :default-expanded-keys="defaultExpandedKeys"
+                        key-field="whateverKey"
+                        label-field="whateverLabel"
+                        children-field="whateverChildren"
+                        selectable
+                        style="font-weight: 900; --n-node-text-color: burlywood"
+                    />
                   </n-layout-content>
                   <n-layout-footer></n-layout-footer>
                 </n-layout>
@@ -363,5 +408,7 @@ import {
 .ngi-font-color {
   color: #2f2f2f;
 }
-
+.ngi-font-color-burlywood {
+  color: burlywood;
+}
 </style>
