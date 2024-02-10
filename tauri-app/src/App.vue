@@ -1,31 +1,70 @@
 <script lang="ts">
 import {
   Document, FolderOpen, CloudUploadOutline, CubeSharp, BarChartOutline, CloudDownloadOutline,
-  CodeDownloadSharp,ReloadCircleOutline,Options, AlertCircleOutline, GitPullRequest,
-  PlaySharp,ReaderOutline
+  CodeDownloadSharp,ReloadCircleOutline,Options, AlertCircleOutline, GitPullRequest,RocketOutline,
+  ReaderOutline, ResizeOutline,PlaySharp,
 } from '@vicons/ionicons5'
 import { defineComponent, ref } from 'vue'
 import { repeat } from 'seemly'
 import { TreeOption } from 'naive-ui'
+import { invoke } from "@tauri-apps/api/tauri";
+import { open } from '@tauri-apps/api/dialog';
 
-function createData (level = 4, baseKey = ''): TreeOption[] | undefined {
-  if (!level) return undefined
-  return repeat(6 - level, undefined).map((_, index) => {
-    const key = '' + baseKey + level + index
-    return {
-      whateverLabel: createLabel(level),
-      whateverKey: key,
-      whateverChildren: createData(level - 1, key)
-    }
-  })
+const kmlInput = ref('')
+const kmlOutput = ref('')
+
+const photoHandleInput = ref('')
+const photoHandleRadius = ref('')
+const photoHandleOutput = ref('')
+
+const lineTreeData = ref([''])
+const photoCalculateTreeData = ref([''])
+
+async function exportExcel() {
+  const v = await invoke("kml_to_excel", {kmlFile: kmlInput.value, outputDir: kmlOutput.value});
+  console.log(v);
 }
 
-function createLabel (level: number): string {
-  if (level === 4) return '道生一'
-  if (level === 3) return '一生二'
-  if (level === 2) return '二生三'
-  if (level === 1) return '三生万物'
-  return ''
+async function kmlToTree() {
+  const data = await invoke("kml_to_json", {kmlFile: kmlInput.value});
+  console.log(data);
+  const treeData = JSON.parse(data);
+  lineTreeData.value = treeData;
+}
+
+async function openFileDialog() {
+  try {
+    const selected = await open({
+      // 配置选项
+      filters: [
+        {
+          name: 'KML Files',
+          extensions: ['kml']
+        }
+      ]
+    });
+    console.log(selected);
+    if (selected) {
+      kmlInput.value = selected;
+    }
+  } catch (error) {
+    console.error('文件选择错误', error);
+  }
+}
+
+async function openFolderDialog() {
+  try {
+    const selected = await open({
+      directory: true, // 设置为true来选择文件夹
+      multiple: false  // 可以设置为true如果您想允许选择多个文件夹
+    });
+    if (selected) {
+      console.log('选择的文件夹:', selected);
+      kmlOutput.value = selected
+    }
+  } catch (error) {
+    console.error('选择文件夹出错', error);
+  }
 }
 
 export default defineComponent({
@@ -34,9 +73,23 @@ export default defineComponent({
   setup () {
     return {
       Document, FolderOpen, CloudUploadOutline, CubeSharp, BarChartOutline, CloudDownloadOutline, CodeDownloadSharp,
-      ReloadCircleOutline,Options, AlertCircleOutline, GitPullRequest, PlaySharp,ReaderOutline,
-      data: createData(),
-      defaultExpandedKeys: ref(['40', '41'])
+      ReloadCircleOutline,Options, AlertCircleOutline, GitPullRequest,ReaderOutline, ResizeOutline, RocketOutline,PlaySharp,
+      lineTreeData: lineTreeData,
+      photoCalculateTreeData: photoCalculateTreeData,
+      onlyAllowNumber: (value: string) => !value || /^\d+$/.test(value),
+      exportExcel: exportExcel,
+      photoHandleRadiusChange: (value: string) => {
+        photoHandleRadius.value = value;
+        console.log(photoHandleRadius.value);
+      },
+      photoHandleInput: photoHandleInput,
+      photoHandleOutput: photoHandleOutput,
+      openFileDialog: openFileDialog,
+      openFolderDialog: openFolderDialog,
+      kmlInput: kmlInput,
+      kmlOutput: kmlOutput,
+      kmlToTree: kmlToTree,
+
     }
   }
 })
@@ -61,24 +114,17 @@ export default defineComponent({
                 导入
               </n-button>
             </n-gi>
-            <n-gi>
-              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
-                <template #icon>
-                  <n-icon :component="Document"></n-icon>
-                </template>
-                文件
-              </n-button>
-            </n-gi>
-            <n-gi>
-              <n-button color="#F5DEB3FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
-                <template #icon>
-                  <n-icon :component="FolderOpen"></n-icon>
-                </template>
-                文件夹
-              </n-button>
-            </n-gi>
-            <n-gi :span="4">
-              <n-input class="bgc" disabled readonly round placeholder="文件: ../XXX/XXX.KML 或 文件夹: ../XXX/XXX" />
+            <n-gi :span="6">
+              <n-input class="bgc"
+                       :readonly="true"
+                       v-model:value="kmlInput"
+                       @click="openFileDialog"
+                       style="
+                       --n-text-decoration-color: burlywood;
+                       --n-text-color: burlywood;
+                       --n-color-focus: #2f2f2f;"
+                       round
+                       placeholder="文件: ../XXX/XXX.KML" />
             </n-gi>
           </n-grid>
         </n-layout-content>
@@ -92,16 +138,16 @@ export default defineComponent({
                 输出
               </n-button>
             </n-gi>
-            <n-gi>
-              <n-button color="#F5DEB3FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
-                <template #icon>
-                  <n-icon :component="FolderOpen"></n-icon>
-                </template>
-                文件夹
-              </n-button>
-            </n-gi>
-            <n-gi :span="5">
-              <n-input class="bgc" disabled readonly round placeholder="文件夹: ../XXX/XXX" />
+            <n-gi :span="6">
+              <n-input class="bgc"
+                       :readonly="true"
+                       v-model:value="kmlOutput"
+                       @click="openFolderDialog"
+                       style="
+                       --n-text-decoration-color: burlywood;
+                       --n-text-color: burlywood;
+                       --n-color-focus: #2f2f2f"
+                       round placeholder="文件夹: ../XXX/XXX" />
             </n-gi>
           </n-grid>
         </n-layout-content>
@@ -115,16 +161,16 @@ export default defineComponent({
                 操作
               </n-button>
             </n-gi>
-            <n-gi :span="2">
-              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
+            <n-gi :span="3">
+              <n-button @click="exportExcel" color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="CodeDownloadSharp"></n-icon>
                 </template>
                 导出excel
               </n-button>
             </n-gi>
-            <n-gi :span="2">
-              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
+            <n-gi :span="3">
+              <n-button @click="kmlToTree" color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="ReloadCircleOutline"></n-icon>
                 </template>
@@ -138,10 +184,24 @@ export default defineComponent({
 
       <n-layout class="bgc">
         <n-layout-header class="head-font-color n-layout-header-standard">
-          <n-icon :component="CubeSharp"></n-icon>  导入线路数据
+          <n-icon :component="CubeSharp"></n-icon>  图片处理
         </n-layout-header>
-        <n-layout-content content-style="padding: 12px;" class="content-font-color">
+        <n-layout-content content-style="padding: 10px;" class="content-font-color">
           <n-grid x-gap="5" :cols="7">
+            <n-gi :span="7">
+              <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%; font-weight: 900" disabled round>
+                <template #icon>
+                  <n-icon :component="AlertCircleOutline"></n-icon>
+                </template>
+                说明:在点击计算后,会根据站点经纬度和半径画圆,然后判断照片的经纬度时候属于圆内
+              </n-button>
+            </n-gi>
+          </n-grid>
+        </n-layout-content>
+
+        <n-layout-content content-style="padding: 10px;" class="content-font-color">
+          <n-grid x-gap="5" :cols="7">
+
             <n-gi>
               <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%; font-weight: 900" disabled round>
                 <template #icon>
@@ -150,92 +210,44 @@ export default defineComponent({
                 导入
               </n-button>
             </n-gi>
-            <n-gi>
-              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
-                <template #icon>
-                  <n-icon :component="Document"></n-icon>
-                </template>
-                文件
-              </n-button>
-            </n-gi>
-            <n-gi>
-              <n-button color="#F5DEB3FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
-                <template #icon>
-                  <n-icon :component="FolderOpen"></n-icon>
-                </template>
-                文件夹
-              </n-button>
-            </n-gi>
-            <n-gi :span="4">
-              <n-input class="bgc" disabled readonly round placeholder="文件: ../XXX/XXX.KML 或 文件夹: ../XXX/XXX" />
-            </n-gi>
-          </n-grid>
-        </n-layout-content>
-        <n-layout-footer></n-layout-footer>
-      </n-layout>
-
-
-      <n-layout class="bgc">
-        <n-layout-header class="head-font-color n-layout-header-standard">
-          <n-icon :component="CubeSharp"></n-icon>  给定站点半径
-        </n-layout-header>
-        <n-layout-content content-style="padding: 12px;" class="content-font-color">
-          <n-grid x-gap="5" :cols="7">
             <n-gi :span="6">
-              <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%; font-weight: 900" disabled round>
-                <template #icon>
-                  <n-icon :component="AlertCircleOutline"></n-icon>
-                </template>
-                说明:以站点为圆心画圆,根据照片经纬度判断时候属于其圆内
-              </n-button>
-            </n-gi>
-            <n-gi>
-              <n-input class="bgc" round placeholder="..米" />
+              <n-input class="bgc"
+                       :readonly="true"
+                       v-model:value="photoHandleInput"
+                       @click="openFolderDialog"
+                       style="
+                       --n-text-decoration-color: burlywood;
+                       --n-text-color: burlywood;
+                       --n-color-focus: #2f2f2f"
+                       round
+                       placeholder="文件夹: ../XXX/XXX" />
             </n-gi>
           </n-grid>
         </n-layout-content>
-        <n-layout-footer></n-layout-footer>
-      </n-layout>
 
-      <n-layout class="bgc">
-        <n-layout-header class="head-font-color n-layout-header-standard">
-          <n-icon :component="CubeSharp"></n-icon>  导入图片
-        </n-layout-header>
-        <n-layout-content content-style="padding: 12px;" class="content-font-color">
+        <n-layout-content content-style="padding: 10px;" class="content-font-color">
           <n-grid x-gap="5" :cols="7">
+
             <n-gi>
               <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%; font-weight: 900" disabled round>
                 <template #icon>
-                  <n-icon :component="CloudUploadOutline"></n-icon>
+                  <n-icon :component="ResizeOutline"></n-icon>
                 </template>
-                普通/红外
+                半径
               </n-button>
             </n-gi>
-            <n-gi>
-              <n-input class="bgc" disabled readonly round placeholder="0/0" />
-            </n-gi>
-            <n-gi>
-              <n-button color="#F5DEB3FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
-                <template #icon>
-                  <n-icon :component="FolderOpen"></n-icon>
-                </template>
-                文件夹
-              </n-button>
-            </n-gi>
-            <n-gi :span="4">
-              <n-input class="bgc" disabled readonly round placeholder="文件: ../XXX/XXX.KML 或 文件夹: ../XXX/XXX" />
+            <n-gi :span="6">
+              <n-input class="bgc"
+                       :allow-input="onlyAllowNumber"
+                       style="
+                       --n-text-decoration-color: burlywood;
+                       --n-text-color: burlywood;
+                       --n-color-focus: #2f2f2f" round placeholder="站点辐射的范围半径, 单位: 米" />
             </n-gi>
           </n-grid>
         </n-layout-content>
-        <n-layout-footer></n-layout-footer>
-      </n-layout>
 
-
-      <n-layout class="bgc">
-        <n-layout-header class="head-font-color n-layout-header-standard">
-          <n-icon :component="CubeSharp"></n-icon>  输出地址
-        </n-layout-header>
-        <n-layout-content content-style="padding: 12px;" class="content-font-color">
+        <n-layout-content content-style="padding: 10px;" class="content-font-color">
           <n-grid x-gap="5" :cols="7">
             <n-gi>
               <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%; font-weight: 900" disabled round>
@@ -245,50 +257,71 @@ export default defineComponent({
                 输出
               </n-button>
             </n-gi>
-            <n-gi>
-              <n-button color="#F5DEB3FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
-                <template #icon>
-                  <n-icon :component="FolderOpen"></n-icon>
-                </template>
-                文件夹
-              </n-button>
-            </n-gi>
-            <n-gi :span="5">
-              <n-input class="bgc" disabled readonly round placeholder="文件夹: ../XXX/XXX" />
+            <n-gi :span="6">
+              <n-input class="bgc"
+                       :readonly="true"
+                       v-model:value="photoHandleOutput"
+                       @click="openFolderDialog"
+                       style="
+                       --n-text-decoration-color: burlywood;
+                       --n-text-color: burlywood;
+                       --n-color-focus: #2f2f2f"
+                       round
+                       placeholder="文件夹: ../XXX/XXX" />
             </n-gi>
           </n-grid>
         </n-layout-content>
+
+        <n-layout-content content-style="padding: 10px;" class="content-font-color">
+          <n-grid x-gap="5" :cols="7">
+            <n-gi>
+              <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%; font-weight: 900" disabled round>
+                <template #icon>
+                  <n-icon :component="Options"></n-icon>
+                </template>
+                操作
+              </n-button>
+            </n-gi>
+            <n-gi :span="3">
+              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
+                <template #icon>
+                  <n-icon :component="RocketOutline"></n-icon>
+                </template>
+                计算
+              </n-button>
+            </n-gi>
+            <n-gi :span="3">
+              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
+                <template #icon>
+                  <n-icon :component="PlaySharp"></n-icon>
+                </template>
+                开始
+              </n-button>
+            </n-gi>
+          </n-grid>
+        </n-layout-content>
+
         <n-layout-footer></n-layout-footer>
       </n-layout>
-
 
       <n-layout has-sider class="bgc">
 
         <n-layout class="bgc">
           <n-layout-header class="head-font-color n-layout-header-standard">
-            <n-icon :component="BarChartOutline"></n-icon>  线路数据展示
+            <n-icon :component="BarChartOutline"></n-icon>  数据展示
           </n-layout-header>
           <n-layout-content content-style="padding: 10px;"  class="content-font-color">
-
             <n-grid x-gap="5" :cols="2" >
               <n-gi>
                 <n-layout class="bgc">
                   <n-layout-header class="n-layout-header-internal">
                     <n-grid x-gap="10" :cols="3" >
-                      <n-gi :span="2">
+                      <n-gi :span="3">
                         <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%; font-weight: 900" disabled round>
                           <template #icon>
                             <n-icon :component="CloudDownloadOutline"></n-icon>
                           </template>
-                          要导入的数据
-                        </n-button>
-                      </n-gi>
-                      <n-gi>
-                        <n-button color="#DEB887FF" class="ngi-font-color" style="width: 100%" round>
-                          <template #icon>
-                            <n-icon :component="GitPullRequest"></n-icon>
-                          </template>
-                          覆盖
+                          导入的线路数据
                         </n-button>
                       </n-gi>
                     </n-grid>
@@ -296,11 +329,8 @@ export default defineComponent({
                   <n-layout-content style="height: 300px" content-style="padding: 10px;" class="content-font-color">
                     <n-tree
                         block-line
-                        :data="data"
-                        :default-expanded-keys="defaultExpandedKeys"
-                        key-field="whateverKey"
-                        label-field="whateverLabel"
-                        children-field="whateverChildren"
+                        default-expand-all
+                        :data="lineTreeData"
                         selectable
                         style="font-weight: 900; --n-node-text-color: burlywood"
                     />
@@ -312,28 +342,24 @@ export default defineComponent({
                 <n-layout class="bgc">
                   <n-layout-header class="n-layout-header-internal">
                     <n-grid  x-gap="5" :cols="3">
-                      <n-gi :span="2">
+                      <n-gi :span="3">
                         <n-button color="#F5DEB3FF" class="ngi-font-color" style="width: 100%; font-weight: 900" disabled round>
                           <template #icon>
                             <n-icon :component="ReaderOutline"></n-icon>
                           </template>
-                          已存在的数据
-                        </n-button>
-                      </n-gi>
-                      <n-gi>
-                        <n-button color="#DEB887FF" class="ngi-font-color" style="width: 100%" round>
-                          <template #icon>
-                            <n-icon :component="PlaySharp"></n-icon>
-                          </template>
-                          开始
+                          导入的照片数计算结果
                         </n-button>
                       </n-gi>
                     </n-grid>
                   </n-layout-header>
                   <n-layout-content style="height: 300px" content-style="padding: 10px;"  class="content-font-color">
-                    <template>
-
-                    </template>
+                    <n-tree
+                        block-line
+                        default-expand-all
+                        :data="photoCalculateTreeData"
+                        selectable
+                        style="font-weight: 900; --n-node-text-color: burlywood"
+                    />
                   </n-layout-content>
                   <n-layout-footer></n-layout-footer>
                 </n-layout>
