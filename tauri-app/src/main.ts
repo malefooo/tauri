@@ -4,7 +4,7 @@ import App from "./App.vue";
 import naive from 'naive-ui'
 
 createApp(App)
-    .use(naive)
+    .use(naive as any)
     .mount("#app");
 
 

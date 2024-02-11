@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::BufReader;
-use std::path;
+use std::ops::DerefMut;
+use std::{mem, path};
 use std::path::Path;
 use anyhow::anyhow;
 use tauri::InvokeError;
@@ -8,7 +9,7 @@ use xlsxwriter::Workbook;
 use xml::EventReader;
 use xml::reader::XmlEvent;
 use crate::station::{Station, STATION, TreeNode};
-use crate::utils::{ensure_dir_exists, is_kml_file, new_invoke_err, to_invoke_err};
+use crate::utils::{ensure_dir_exists, is_kml_file, file_name, new_invoke_err, to_invoke_err};
 
 #[tauri::command]
 pub fn kml_to_excel(kml_file: &str, output_dir: &str) -> Result<(), InvokeError> {
@@ -16,9 +17,9 @@ pub fn kml_to_excel(kml_file: &str, output_dir: &str) -> Result<(), InvokeError>
     ensure_dir_exists(output_dir).map_err(to_invoke_err)?;
 
     if is_kml_file(kml_file) {
-        let data = station_list(kml_file).map_err(to_invoke_err)?;
+        let data = kml_to_station_list(kml_file).map_err(to_invoke_err)?;
 
-        let line_name = line_name(kml_file).map_err(to_invoke_err)?;
+        let line_name = file_name(kml_file).map_err(to_invoke_err)?;
         let file_name = format!("{}.xlsx",line_name);
 
         // 将数据保存到Excel文件
@@ -57,16 +58,19 @@ pub fn kml_to_excel(kml_file: &str, output_dir: &str) -> Result<(), InvokeError>
 }
 
 #[tauri::command]
-pub fn kml_to_json(kml_file: &str) -> Result<String, InvokeError> {
+pub async fn kml_to_json(kml_file: &str) -> Result<String, InvokeError> {
 
     if !is_kml_file(kml_file) {
         return Err(new_invoke_err("not kml file"));
     }
 
-    let station_data = station_list(kml_file).map_err(to_invoke_err)?;
+    let station_data = kml_to_station_list(kml_file).map_err(to_invoke_err)?;
+
+    *STATION.lock().await = station_data.clone();
+
     let station_node: Vec<TreeNode> = station_data.into_iter().map(|v|v.into()).collect();
 
-    let line_name = line_name(kml_file).map_err(to_invoke_err)?;
+    let line_name = file_name(kml_file).map_err(to_invoke_err)?;
     let line_node = TreeNode{
         key: line_name.clone(),
         label: line_name.clone(),
@@ -77,15 +81,9 @@ pub fn kml_to_json(kml_file: &str) -> Result<String, InvokeError> {
     Ok(json)
 }
 
-fn line_name(kml_file: &str) -> anyhow::Result<String> {
-    let parts: Vec<_> = kml_file.split(path::MAIN_SEPARATOR).collect();
-    let kml_file_name = parts.last().unwrap();
-    let kml_file_name_parts: Vec<_> = kml_file_name.split(".").collect();
 
-    Ok(kml_file_name_parts[0].to_string())
-}
 
-fn station_list(kml_file: &str) -> anyhow::Result<Vec<Station>> {
+fn kml_to_station_list(kml_file: &str) -> anyhow::Result<Vec<Station>> {
     let file = File::open(kml_file).unwrap();
     let file = BufReader::new(file);
     let mut parser = EventReader::new(file);

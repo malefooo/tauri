@@ -6,17 +6,22 @@ mod station;
 mod photo;
 mod handle;
 
-use std::sync::Mutex;
-use crate::station::kml::{kml_to_excel, kml_to_json};
-use crate::station::{STATION, Station};
+use station::kml::{kml_to_excel, kml_to_json};
+use station::excel::excel_to_json;
+use handle::{
+    calc_photo,move_to_output
+};
 
-fn main() {
-    STATION.set(Mutex::new(Station::default())).unwrap();
+#[tokio::main]
+async fn main() {
 
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             kml_to_excel,
-            kml_to_json
+            kml_to_json,
+            excel_to_json,
+            calc_photo,
+            move_to_output,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

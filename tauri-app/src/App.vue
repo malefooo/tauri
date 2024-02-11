@@ -4,13 +4,12 @@ import {
   CodeDownloadSharp,ReloadCircleOutline,Options, AlertCircleOutline, GitPullRequest,RocketOutline,
   ReaderOutline, ResizeOutline,PlaySharp,
 } from '@vicons/ionicons5'
-import { defineComponent, ref } from 'vue'
-import { repeat } from 'seemly'
-import { TreeOption } from 'naive-ui'
+import {computed, defineComponent, ref} from 'vue'
+import { createDiscreteApi,   ConfigProviderProps, darkTheme} from 'naive-ui'
 import { invoke } from "@tauri-apps/api/tauri";
 import { open } from '@tauri-apps/api/dialog';
 
-const kmlInput = ref('')
+const kmlOrExcelInput = ref('')
 const kmlOutput = ref('')
 
 const photoHandleInput = ref('')
@@ -20,39 +19,115 @@ const photoHandleOutput = ref('')
 const lineTreeData = ref([''])
 const photoCalculateTreeData = ref([''])
 
-async function exportExcel() {
-  const v = await invoke("kml_to_excel", {kmlFile: kmlInput.value, outputDir: kmlOutput.value});
-  console.log(v);
-}
+// const themeRef = ref<'light' | 'dark'>('dark')
+const configProviderPropsRef = computed<ConfigProviderProps>(() => ({
+  theme: darkTheme
+}))
 
-async function kmlToTree() {
-  const data = await invoke("kml_to_json", {kmlFile: kmlInput.value});
-  console.log(data);
-  const treeData = JSON.parse(data);
-  lineTreeData.value = treeData;
-}
-
-async function openFileDialog() {
-  try {
-    const selected = await open({
-      // 配置选项
-      filters: [
-        {
-          name: 'KML Files',
-          extensions: ['kml']
-        }
-      ]
-    });
-    console.log(selected);
-    if (selected) {
-      kmlInput.value = selected;
+const { message, dialog } = createDiscreteApi(
+    ['message', 'dialog'],
+    {
+      configProviderProps: configProviderPropsRef.value
     }
-  } catch (error) {
-    console.error('文件选择错误', error);
+)
+
+async function calcPhoto() {
+  console.log(photoHandleRadius.value)
+  if (photoHandleRadius.value == '' || photoHandleRadius.value == '0') {
+    dialog.error({title: "请输入半径"})
+    return
+  }
+
+  if (photoHandleInput.value == '') {
+    dialog.error({title: "请输入导入照片文件夹路径"})
+    return
+  }
+
+  try {
+    const data = await invoke("calc_photo", {radius: photoHandleRadius.value, photoPath: photoHandleInput.value});
+    console.log(data);
+    const treeData = JSON.parse(typeof data === "string" ? data :"");
+    photoCalculateTreeData.value = treeData;
+    message.success("success")
+  } catch(error) {
+    dialog.error({title: typeof error === "string" ? error :""})
   }
 }
 
-async function openFolderDialog() {
+async function moveToOutput() {
+  if (photoHandleOutput.value == '') {
+    dialog.error({title: "请输入导出照片文件夹路径"})
+    return
+  }
+
+  try {
+    const v = await invoke("move_to_output", {output: photoHandleOutput.value});
+    console.log(v);
+    message.success("success")
+  } catch(error) {
+    dialog.error({title:  typeof error === "string" ? error :""})
+  }
+}
+
+async function exportExcel() {
+  const isKmlFile = kmlOrExcelInput.value.endsWith('.kml');
+  if (!isKmlFile) {
+    dialog.error({title: "请选择kml文件"})
+    return
+  }
+
+  if (kmlOutput.value == "") {
+    dialog.error({title: "请选择excel输出文件夹"})
+    return
+  }
+
+  try {
+    const v = await invoke("kml_to_excel", {kmlFile: kmlOrExcelInput.value, outputDir: kmlOutput.value});
+    console.log(v);
+    message.success("success")
+  } catch(error) {
+    dialog.error({title:  typeof error === "string" ? error :""})
+  }
+
+}
+
+async function kmlToTree() {
+  try {
+    const isKmlFile = kmlOrExcelInput.value.endsWith('.kml');
+    const data = ref("")
+    if (isKmlFile) {
+      data.value = await invoke("kml_to_json", {kmlFile: kmlOrExcelInput.value});
+    } else {
+      data.value = await invoke("excel_to_json", {excelFile: kmlOrExcelInput.value});
+    }
+
+    console.log(data);
+    const treeData = JSON.parse(data.value);
+    lineTreeData.value = treeData;
+    message.success("success")
+  } catch(error) {
+    dialog.error({title:  typeof error === "string" ? error :""})
+  }
+
+}
+
+async function openFileDialogForKmlOrExcelInput() {
+  const selected = await open({
+    // 配置选项
+    filters: [
+      {
+        name: 'KML 或 Excel Files',
+        extensions: ['kml','xlsx']
+      }
+    ]
+  });
+  console.log(selected);
+  if (selected) {
+    typeof selected === "string" ? kmlOrExcelInput.value = selected :"";
+  }
+}
+
+async function openFolderDialogForPhotoInput() {
   try {
     const selected = await open({
       directory: true, // 设置为true来选择文件夹
@@ -60,7 +135,37 @@ async function openFolderDialog() {
     });
     if (selected) {
       console.log('选择的文件夹:', selected);
-      kmlOutput.value = selected
+      typeof selected === "string" ? photoHandleInput.value = selected : ""
+    }
+  } catch (error) {
+    console.error('选择文件夹出错', error);
+  }
+}
+
+async function openFolderDialogForKmlOutput() {
+  try {
+    const selected = await open({
+      directory: true, // 设置为true来选择文件夹
+      multiple: false  // 可以设置为true如果您想允许选择多个文件夹
+    });
+    if (selected) {
+      console.log('选择的文件夹:', selected);
+      typeof selected === "string" ? kmlOutput.value = selected : ""
+    }
+  } catch (error) {
+    console.error('选择文件夹出错', error);
+  }
+}
+
+async function openFolderDialogForPhotoOutput() {
+  try {
+    const selected = await open({
+      directory: true, // 设置为true来选择文件夹
+      multiple: false  // 可以设置为true如果您想允许选择多个文件夹
+    });
+    if (selected) {
+      console.log('选择的文件夹:', selected);
+      typeof selected === "string" ? photoHandleOutput.value = selected : ""
     }
   } catch (error) {
     console.error('选择文件夹出错', error);
@@ -80,21 +185,24 @@ export default defineComponent({
       exportExcel: exportExcel,
       photoHandleRadiusChange: (value: string) => {
         photoHandleRadius.value = value;
-        console.log(photoHandleRadius.value);
       },
       photoHandleInput: photoHandleInput,
       photoHandleOutput: photoHandleOutput,
-      openFileDialog: openFileDialog,
-      openFolderDialog: openFolderDialog,
-      kmlInput: kmlInput,
+      openFileDialogForKmlOrExcelInput: openFileDialogForKmlOrExcelInput,
+      openFolderDialogForKmlOutput: openFolderDialogForKmlOutput,
+      kmlOrExcelInput: kmlOrExcelInput,
       kmlOutput: kmlOutput,
       kmlToTree: kmlToTree,
-
+      moveToOutput: moveToOutput,
+      calcPhoto: calcPhoto,
+      openFolderDialogForPhotoInput:openFolderDialogForPhotoInput,
+      openFolderDialogForPhotoOutput:openFolderDialogForPhotoOutput,
     }
   }
 })
 
 </script>
+
 
 <template>
 
@@ -117,14 +225,14 @@ export default defineComponent({
             <n-gi :span="6">
               <n-input class="bgc"
                        :readonly="true"
-                       v-model:value="kmlInput"
-                       @click="openFileDialog"
+                       v-model:value="kmlOrExcelInput"
+                       @click="openFileDialogForKmlOrExcelInput"
                        style="
                        --n-text-decoration-color: burlywood;
                        --n-text-color: burlywood;
                        --n-color-focus: #2f2f2f;"
                        round
-                       placeholder="文件: ../XXX/XXX.KML" />
+                       placeholder="文件: ../XXX/XXX.KML 或 XXX.xlsx" />
             </n-gi>
           </n-grid>
         </n-layout-content>
@@ -142,7 +250,7 @@ export default defineComponent({
               <n-input class="bgc"
                        :readonly="true"
                        v-model:value="kmlOutput"
-                       @click="openFolderDialog"
+                       @click="openFolderDialogForKmlOutput"
                        style="
                        --n-text-decoration-color: burlywood;
                        --n-text-color: burlywood;
@@ -162,7 +270,7 @@ export default defineComponent({
               </n-button>
             </n-gi>
             <n-gi :span="3">
-              <n-button @click="exportExcel" color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
+              <n-button @click="exportExcel"  color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="CodeDownloadSharp"></n-icon>
                 </template>
@@ -214,7 +322,7 @@ export default defineComponent({
               <n-input class="bgc"
                        :readonly="true"
                        v-model:value="photoHandleInput"
-                       @click="openFolderDialog"
+                       @click="openFolderDialogForPhotoInput"
                        style="
                        --n-text-decoration-color: burlywood;
                        --n-text-color: burlywood;
@@ -239,6 +347,7 @@ export default defineComponent({
             <n-gi :span="6">
               <n-input class="bgc"
                        :allow-input="onlyAllowNumber"
+                       @change="photoHandleRadiusChange"
                        style="
                        --n-text-decoration-color: burlywood;
                        --n-text-color: burlywood;
@@ -261,7 +370,7 @@ export default defineComponent({
               <n-input class="bgc"
                        :readonly="true"
                        v-model:value="photoHandleOutput"
-                       @click="openFolderDialog"
+                       @click="openFolderDialogForPhotoOutput"
                        style="
                        --n-text-decoration-color: burlywood;
                        --n-text-color: burlywood;
@@ -283,7 +392,7 @@ export default defineComponent({
               </n-button>
             </n-gi>
             <n-gi :span="3">
-              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
+              <n-button @click="calcPhoto" color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="RocketOutline"></n-icon>
                 </template>
@@ -291,7 +400,7 @@ export default defineComponent({
               </n-button>
             </n-gi>
             <n-gi :span="3">
-              <n-button color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
+              <n-button @click="moveToOutput" color="#DEB887FF" class="ngi-font-color-burlywood" style="width: 100%" ghost round>
                 <template #icon>
                   <n-icon :component="PlaySharp"></n-icon>
                 </template>
